@@ -11,3 +11,10 @@ test('Converts an OpenAPI spec correctly', async () => {
   const expected = JSON.parse(fs.readFileSync(path.join(__dirname, 'petstore.json'), 'utf-8'));
   expect(result).toEqual(expected);
 });
+
+const fetchAndSaveToJsonFile = async (): Promise<void> => {
+  const result = await convertRawOpenAPISpecToOpenAIFunctions(
+    'https://raw.githubusercontent.com/swagger-api/swagger-petstore/master/src/main/resources/openapi.yaml',
+  );
+  fs.writeFileSync(path.join(__dirname, 'petstore.json'), JSON.stringify(result));
+};
