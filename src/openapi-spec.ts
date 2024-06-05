@@ -179,7 +179,7 @@ export class OpenAPISpec {
       console.warn(`Attempting to load an OpenAPI ${openAPIVersion} spec. ${warningMessage}`);
     } else if (swaggerVersion !== undefined) {
       console.warn(`Attempting to load a Swagger ${swaggerVersion} spec. ${warningMessage}`);
-    } else {
+    } else if (!swaggerVersion && !openAPIVersion) {
       throw new Error(`Attempting to load an unsupported spec:\n\n${JSON.stringify(document, null, 2)}.`);
     }
   }

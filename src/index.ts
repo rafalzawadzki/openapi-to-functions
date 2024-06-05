@@ -215,7 +215,7 @@ export async function convertRawOpenAPISpecToOpenAIFunctions(
       try {
         convertedSpec = OpenAPISpec.fromString(spec);
       } catch (e) {
-        throw new Error(`Unable to parse spec from source ${spec}.`);
+        throw new Error(`Unable to parse spec from source ${spec}: ${e}`);
       }
     }
   } else {
