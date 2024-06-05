@@ -18,7 +18,7 @@ const functionsFromSpec = convertRawOpenAPISpecToOpenAIFunctions(openApiSpecStri
 
 outputs:
 
-```json
+```js
 [
   {
     name: "getCurrentTemperature",
@@ -39,7 +39,8 @@ outputs:
       },
       required: ["location", "unit"],
     },
-    ...
+  },
+  ...
 ]
 ```
 

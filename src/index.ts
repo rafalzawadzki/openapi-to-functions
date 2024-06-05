@@ -2,7 +2,7 @@
 import { ChatCompletionCreateParams } from 'openai/resources/chat/index';
 import { JsonSchema7ObjectType, JsonSchema7ArrayType, JsonSchema7Type } from 'zod-to-json-schema';
 import type { OpenAPIV3_1 } from 'openapi-types';
-import { OpenAPISpec } from 'openapi-spec';
+import { OpenAPISpec } from './openapi-spec';
 
 /**
  * Converts OpenAPI parameters to JSON schema format.
