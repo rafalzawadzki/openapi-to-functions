@@ -1,20 +1,29 @@
-import { convertRawOpenAPISpecToOpenAIFunctions } from '../src/index';
-import fs from 'fs';
 import path from 'path';
+import fs from 'fs';
+import { expectedShopSchema } from './fixtures/shop-expected';
+import { expectedPetstoreSchema } from './fixtures/petstore-expected';
+import { OpenAPISpec } from '../src/openapi-spec';
+import { convertRawOpenAPISpecToOpenAIFunctions } from '../src';
 
-// @improve - this test relies on external url and might be flaky
+describe('convertOpenAPIToJSONSchema', () => {
+  const loadYamlFile = (filename: string) => {
+    const filePath = path.join(__dirname, 'fixtures', filename);
+    const fileContents = fs.readFileSync(filePath, 'utf8');
+    const api = OpenAPISpec.fromString(fileContents);
+    return api;
+  };
 
-test('Converts an OpenAPI spec correctly', async () => {
-  const result = await convertRawOpenAPISpecToOpenAIFunctions(
-    'https://raw.githubusercontent.com/swagger-api/swagger-petstore/master/src/main/resources/openapi.yaml',
-  );
-  const expected = JSON.parse(fs.readFileSync(path.join(__dirname, 'petstore.json'), 'utf-8'));
-  expect(result).toEqual(expected);
+  test('converts shop.yaml correctly', async () => {
+    const spec = loadYamlFile('shop.yaml');
+    const result = await convertRawOpenAPISpecToOpenAIFunctions(spec);
+
+    expect(result).toEqual(expectedShopSchema);
+  });
+
+  test('converts petstore.yaml correctly', async () => {
+    const spec = loadYamlFile('petstore.yaml');
+    const result = await convertRawOpenAPISpecToOpenAIFunctions(spec);
+
+    expect(result).toEqual(expectedPetstoreSchema);
+  });
 });
-
-const fetchAndSaveToJsonFile = async (): Promise<void> => {
-  const result = await convertRawOpenAPISpecToOpenAIFunctions(
-    'https://raw.githubusercontent.com/swagger-api/swagger-petstore/master/src/main/resources/openapi.yaml',
-  );
-  fs.writeFileSync(path.join(__dirname, 'petstore.json'), JSON.stringify(result));
-};

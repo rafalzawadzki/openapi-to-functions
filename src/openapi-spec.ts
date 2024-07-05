@@ -186,7 +186,8 @@ export class OpenAPISpec {
 
   static fromObject(document: Record<string, any>) {
     OpenAPISpec.alertUnsupportedSpec(document);
-    return new OpenAPISpec(document as OpenAPIV3_1.Document);
+    const spec = new OpenAPISpec(document as OpenAPIV3_1.Document);
+    return spec?.document;
   }
 
   static fromString(rawString: string) {

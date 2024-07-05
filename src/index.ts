@@ -1,216 +1,12 @@
-// Inspired by https://github.com/langchain-ai/langchainjs/blob/7e3da29/langchain/src/chains/openai_functions/openapi.ts
-import { ChatCompletionCreateParams } from 'openai/resources/chat/index';
-import { JsonSchema7ObjectType, JsonSchema7ArrayType, JsonSchema7Type } from 'zod-to-json-schema';
-import type { OpenAPIV3_1 } from 'openapi-types';
+import type { OpenAPI } from 'openapi-types';
 import { OpenAPISpec } from './openapi-spec';
+import openapiSchemaToJsonSchema from '@openapi-contrib/openapi-schema-to-json-schema';
+import { generateOperationName } from './generate-operation-name';
+import { FunctionSchema, OpenAPISchema } from 'types';
 
-/**
- * Converts OpenAPI parameters to JSON schema format.
- * @param params The OpenAPI parameters to convert.
- * @param spec The OpenAPI specification that contains the parameters.
- * @returns The JSON schema representation of the OpenAPI parameters.
- */
-function convertOpenAPIParamsToJSONSchema(params: OpenAPIV3_1.ParameterObject[], spec: OpenAPISpec) {
-  return params.reduce(
-    (jsonSchema: JsonSchema7ObjectType, param) => {
-      let schema;
-      if (param.schema) {
-        schema = spec.getSchema(param.schema);
-        jsonSchema.properties[param.name] = {
-          ...convertOpenAPISchemaToJSONSchema(schema, spec),
-          description: param.description,
-        };
-      } else if (param.content) {
-        const mediaTypeSchema = Object.values(param.content)[0].schema;
-        if (mediaTypeSchema) {
-          schema = spec.getSchema(mediaTypeSchema);
-        }
-        if (!schema) {
-          return jsonSchema;
-        }
-        if (schema.description === undefined) {
-          schema.description = param.description ?? '';
-        }
-        jsonSchema.properties[param.name] = {
-          ...convertOpenAPISchemaToJSONSchema(schema, spec),
-          description: param.description,
-        };
-      } else {
-        return jsonSchema;
-      }
-      if (param.required && Array.isArray(jsonSchema.required)) {
-        jsonSchema.required.push(param.name);
-      }
-      return jsonSchema;
-    },
-    {
-      type: 'object',
-      properties: {},
-      required: [],
-      additionalProperties: {},
-    },
-  );
-}
-
-// OpenAI throws errors on extraneous schema properties, e.g. if "required" is set on individual ones
-/**
- * Converts OpenAPI schemas to JSON schema format.
- * @param schema The OpenAPI schema to convert.
- * @param spec The OpenAPI specification that contains the schema.
- * @returns The JSON schema representation of the OpenAPI schema.
- */
-export function convertOpenAPISchemaToJSONSchema(schema: OpenAPIV3_1.SchemaObject, spec: OpenAPISpec): JsonSchema7Type {
-  if (schema.type === 'object') {
-    return Object.keys(schema.properties ?? {}).reduce(
-      (jsonSchema: JsonSchema7ObjectType, propertyName) => {
-        if (!schema.properties) {
-          return jsonSchema;
-        }
-        const openAPIProperty = spec.getSchema(schema.properties[propertyName]);
-        if (openAPIProperty.type === undefined) {
-          return jsonSchema;
-        }
-        // eslint-disable-next-line no-param-reassign
-        jsonSchema.properties[propertyName] = convertOpenAPISchemaToJSONSchema(openAPIProperty, spec);
-        if (openAPIProperty.required && jsonSchema.required !== undefined) {
-          jsonSchema.required.push(propertyName);
-        }
-        return jsonSchema;
-      },
-      {
-        type: 'object',
-        properties: {},
-        required: [],
-        additionalProperties: {},
-      },
-    );
-  }
-  if (schema.type === 'array') {
-    return {
-      type: 'array',
-      items: convertOpenAPISchemaToJSONSchema(schema.items ?? {}, spec),
-      minItems: schema.minItems,
-      maxItems: schema.maxItems,
-    } as JsonSchema7ArrayType;
-  }
-  return {
-    type: schema.type ?? 'string',
-    ...(schema.enum && { enum: schema.enum }),
-    ...(schema.default !== undefined && { default: schema.default }),
-    ...(schema.pattern && { pattern: schema.pattern }),
-    ...(schema.exclusiveMinimum !== undefined && {
-      exclusiveMinimum: schema.exclusiveMinimum,
-    }),
-    ...(schema.exclusiveMaximum !== undefined && {
-      exclusiveMaximum: schema.exclusiveMaximum,
-    }),
-  } as JsonSchema7Type;
-}
-
-/**
- * Converts an OpenAPI specification to OpenAI functions.
- * @param spec The OpenAPI specification to convert.
- * @returns An object containing the OpenAI functions derived from the OpenAPI specification and a default execution method.
- */
-function convertOpenAPISpecToOpenAIFunctions(
-  spec: OpenAPISpec,
-  serverBaseUrl?: string,
-): ChatCompletionCreateParams.Function[] {
-  if (!spec.document.paths) {
-    return [];
-  }
-  const openAIFunctions = [];
-  const nameToCallMap: Record<string, { method: string; url: string }> = {};
-  for (const path of Object.keys(spec.document.paths)) {
-    const pathParameters = spec.getParametersForPath(path);
-    for (const method of spec.getMethodsForPath(path)) {
-      const operation = spec.getOperation(path, method);
-      if (!operation) {
-        return [];
-      }
-      const operationParametersByLocation = pathParameters
-        .concat(spec.getParametersForOperation(operation))
-        .reduce((operationParams: Record<string, OpenAPIV3_1.ParameterObject[]>, param) => {
-          if (!operationParams[param.in]) {
-            // eslint-disable-next-line no-param-reassign
-            operationParams[param.in] = [];
-          }
-          operationParams[param.in].push(param);
-          return operationParams;
-        }, {});
-      const paramLocationToRequestArgNameMap: Record<string, string> = {
-        query: 'params',
-        header: 'headers',
-        cookie: 'cookies',
-        path: 'path_params',
-      };
-      const requestArgsSchema: Record<string, JsonSchema7ObjectType> & {
-        data?:
-          | JsonSchema7ObjectType
-          | {
-              anyOf?: JsonSchema7ObjectType[];
-            };
-      } = {};
-      for (const paramLocation of Object.keys(paramLocationToRequestArgNameMap)) {
-        if (operationParametersByLocation[paramLocation]) {
-          requestArgsSchema[paramLocationToRequestArgNameMap[paramLocation]] = convertOpenAPIParamsToJSONSchema(
-            operationParametersByLocation[paramLocation],
-            spec,
-          );
-        }
-      }
-      const requestBody = spec.getRequestBodyForOperation(operation);
-      if (requestBody?.content !== undefined) {
-        const requestBodySchemas: Record<string, JsonSchema7ObjectType> = {};
-        for (const [mediaType, mediaTypeObject] of Object.entries(requestBody.content)) {
-          if (mediaTypeObject.schema !== undefined) {
-            const schema = spec.getSchema(mediaTypeObject.schema);
-            requestBodySchemas[mediaType] = convertOpenAPISchemaToJSONSchema(schema, spec) as JsonSchema7ObjectType;
-          }
-        }
-        const mediaTypes = Object.keys(requestBodySchemas);
-        if (mediaTypes.length === 1) {
-          requestArgsSchema.data = requestBodySchemas[mediaTypes[0]];
-        } else if (mediaTypes.length > 1) {
-          requestArgsSchema.data = {
-            anyOf: Object.values(requestBodySchemas),
-          };
-        }
-      }
-      const openAIFunction: ChatCompletionCreateParams.Function = {
-        name: OpenAPISpec.getCleanedOperationId(operation, path, method),
-        description: operation.description ?? operation.summary ?? '',
-        parameters: {
-          type: 'object',
-          properties: requestArgsSchema,
-          // All remaining top-level parameters are required
-          required: Object.keys(requestArgsSchema),
-        },
-      };
-
-      openAIFunctions.push(openAIFunction);
-      const baseUrl = (spec.baseUrl ?? serverBaseUrl ?? '').endsWith('/')
-        ? (spec.baseUrl ?? serverBaseUrl ?? '').slice(0, -1)
-        : spec.baseUrl ?? serverBaseUrl ?? '';
-      nameToCallMap[openAIFunction.name] = {
-        method,
-        url: baseUrl + path,
-      };
-    }
-  }
-  return openAIFunctions;
-}
-
-/**
- * Take string content or URL
- * @param spec OpenAPISpec or url/file/text string corresponding to one.
- * @param options Custom options passed into the chain
- * @returns OpenAPIChain
- */
 export async function convertRawOpenAPISpecToOpenAIFunctions(
-  spec: OpenAPIV3_1.Document | string,
-  serverBaseUrl?: string,
-) {
+  spec: OpenAPI.Document | string,
+): Promise<FunctionSchema[]> {
   let convertedSpec;
   if (typeof spec === 'string') {
     try {
@@ -225,5 +21,72 @@ export async function convertRawOpenAPISpecToOpenAIFunctions(
   } else {
     convertedSpec = OpenAPISpec.fromObject(spec);
   }
-  return convertOpenAPISpecToOpenAIFunctions(convertedSpec, serverBaseUrl);
+  return convertOpenAPIToFunctions(convertedSpec);
 }
+
+const convertOpenAPIToFunctions = (openapi: OpenAPI.Document): FunctionSchema[] => {
+  // this reformats all parameters to JSON Schema
+  // it's unsafely casted because openapi-types typing gave me too much grief
+  const jsonSchema = openapiSchemaToJsonSchema(openapi) as OpenAPISchema;
+
+  const result: FunctionSchema[] = [];
+
+  for (const [path, methods] of Object.entries(jsonSchema.paths)) {
+    for (const [method, details] of Object.entries(methods)) {
+      const functionSchema: FunctionSchema = {
+        name: generateOperationName(details, path, method),
+        description: details.description ?? details.summary ?? '',
+        parameters: {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
+      };
+
+      if (details.parameters) {
+        parseParameters(details.parameters, functionSchema);
+      } else if (method === 'post' && details.requestBody) {
+        handlePostMethod(details, functionSchema);
+      }
+
+      // Remove empty required array
+      if (functionSchema.parameters.required.length === 0) {
+        delete functionSchema.parameters.required;
+      }
+
+      result.push(functionSchema);
+    }
+  }
+
+  return result;
+};
+
+const parseParameters = (parameters: any[], functionSchema: FunctionSchema) => {
+  parameters.forEach((param: any) => {
+    functionSchema.parameters.properties[param.name] = {
+      type: param.schema.type,
+      description: param.description,
+    };
+    if (param.required) {
+      functionSchema.parameters.required!.push(param.name);
+    }
+  });
+};
+
+const handlePostMethod = (details: any, functionSchema: FunctionSchema) => {
+  const schema = details.requestBody.content['application/json'].schema;
+  functionSchema.parameters.properties = {};
+  Object.entries(schema.properties).forEach(([propName, propDetails]) => {
+    functionSchema.parameters.properties[propName] = {
+      type: (propDetails as any).type,
+      description: (propDetails as any).description,
+    };
+    if ((propDetails as any).required) {
+      functionSchema.parameters.required!.push(propName);
+    }
+  });
+
+  if (Array.isArray(schema.required)) {
+    functionSchema.parameters.required = schema.required;
+  }
+};

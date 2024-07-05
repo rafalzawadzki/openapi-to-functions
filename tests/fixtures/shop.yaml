@@ -1,0 +1,54 @@
+openapi: 3.0.0
+info:
+  title: Shop API
+  description: The API lets you retrieve basic information about customer order and the available product inventory.
+  version: 1.0.0
+servers:
+  - url: 'https://shop.com/api/v1'
+security:
+  - auth: []
+paths:
+  /order:
+    get:
+      summary: Retrieve an order by the provided order name
+      parameters:
+        - in: query
+          name: shopName
+          required: true
+          schema:
+            type: string
+          description: Shop name
+        - in: query
+          name: orderName
+          required: true
+          schema:
+            type: string
+          description: Order name
+      responses:
+        200:
+          description: Order details, including fulfillment status, order date, quantity ordered, and more
+  /products:
+    get:
+      summary: Search products in the store using the provided query
+      parameters:
+        - in: query
+          name: shopName
+          required: true
+          schema:
+            type: string
+          description: Shop name
+        - in: query
+          name: searchQuery
+          required: true
+          schema:
+            type: string
+          description: Query to search
+      responses:
+        200:
+          description: Max 5 products found for the query
+components:
+  securitySchemes:
+    auth:
+      type: apiKey
+      in: header
+      name: X-Access-Token

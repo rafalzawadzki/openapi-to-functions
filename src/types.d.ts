@@ -1,13 +1,18 @@
-export {};
-
-export interface ForgeOptions {
-  gitHost: string;
+export interface OpenAPISchema extends JSONSchema {
+  paths: {
+    [path: string]: {
+      [method: string]: {
+        summary?: string;
+        description?: string;
+        parameters?: any;
+        requestBody?: any;
+      };
+    };
+  };
 }
 
-declare global {
-  namespace Express {
-    export interface Request {
-      options: ForgeOptions;
-    }
-  }
+export interface FunctionSchema extends JSONSchema {
+  name: string;
+  description: string;
+  parameters: any;
 }
