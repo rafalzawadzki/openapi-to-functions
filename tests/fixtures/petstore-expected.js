@@ -8,7 +8,9 @@ export const expectedPetstoreSchema = [
         limit: {
           type: 'integer',
           description: 'How many items to return at one time (max 100)',
-          location: 'query'
+          format: 'int32',
+          location: 'query',
+          maximum: 100
         }
       }
     }

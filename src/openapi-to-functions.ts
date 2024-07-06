@@ -4,6 +4,18 @@ import openapiSchemaToJsonSchema from '@openapi-contrib/openapi-schema-to-json-s
 import { generateOperationName } from './generate-operation-name';
 import { FunctionSchema, OpenAPISchema } from 'types';
 
+interface APIFunctionParameter {
+  type: string;
+  description?: string;
+  enum?: string[];
+  default?: any;
+  example?: any;
+  format?: string;
+  minimum?: number;
+  maximum?: number;
+  location?: 'query' | 'header' | 'path' | 'body';
+}
+
 export async function convertRawOpenAPISpecToOpenAIFunctions(
   spec: OpenAPI.Document | string,
 ): Promise<FunctionSchema[]> {
@@ -49,7 +61,6 @@ const convertOpenAPIToFunctions = (openapi: OpenAPI.Document): FunctionSchema[] 
         handleBodyMethod(details, functionSchema);
       }
 
-      // Remove empty required array
       if (functionSchema.parameters.required.length === 0) {
         delete functionSchema.parameters.required;
       }
@@ -63,11 +74,21 @@ const convertOpenAPIToFunctions = (openapi: OpenAPI.Document): FunctionSchema[] 
 
 const parseParameters = (parameters: any[], functionSchema: FunctionSchema) => {
   parameters.forEach((param: any) => {
-    functionSchema.parameters.properties[param.name] = {
+    const paramDetails: APIFunctionParameter = {
       type: param.schema.type,
       description: param.description,
-      location: param.in, // query, path, header, cookie, body
+      location: param.in, // Add location metadata
     };
+
+    if (param.schema.enum) paramDetails.enum = param.schema.enum;
+    if (param.schema.default) paramDetails.default = param.schema.default;
+    if (param.schema.example) paramDetails.example = param.schema.example;
+    if (param.schema.format) paramDetails.format = param.schema.format;
+    if (param.schema.minimum !== undefined) paramDetails.minimum = param.schema.minimum;
+    if (param.schema.maximum !== undefined) paramDetails.maximum = param.schema.maximum;
+
+    functionSchema.parameters.properties[param.name] = paramDetails;
+
     if (param.required) {
       functionSchema.parameters.required!.push(param.name);
     }
@@ -78,12 +99,23 @@ const handleBodyMethod = (details: any, functionSchema: FunctionSchema) => {
   const schema = details.requestBody.content['application/json'].schema;
   functionSchema.parameters.properties = {};
   Object.entries(schema.properties).forEach(([propName, propDetails]) => {
-    functionSchema.parameters.properties[propName] = {
-      type: (propDetails as any).type,
-      description: (propDetails as any).description,
-      location: 'body',
+    const propDetailsTyped = propDetails as any;
+    const paramDetails: APIFunctionParameter = {
+      type: propDetailsTyped.type,
+      description: propDetailsTyped.description,
+      location: 'body', // Set location to body for POST method
     };
-    if ((propDetails as any).required) {
+
+    if (propDetailsTyped.enum) paramDetails.enum = propDetailsTyped.enum;
+    if (propDetailsTyped.default) paramDetails.default = propDetailsTyped.default;
+    if (propDetailsTyped.example) paramDetails.example = propDetailsTyped.example;
+    if (propDetailsTyped.format) paramDetails.format = propDetailsTyped.format;
+    if (propDetailsTyped.minimum !== undefined) paramDetails.minimum = propDetailsTyped.minimum;
+    if (propDetailsTyped.maximum !== undefined) paramDetails.maximum = propDetailsTyped.maximum;
+
+    functionSchema.parameters.properties[propName] = paramDetails;
+
+    if (propDetailsTyped.required) {
       functionSchema.parameters.required!.push(propName);
     }
   });
