@@ -46,7 +46,7 @@ const convertOpenAPIToFunctions = (openapi: OpenAPI.Document): FunctionSchema[] 
       if (details.parameters) {
         parseParameters(details.parameters, functionSchema);
       } else if (method === 'post' && details.requestBody) {
-        handlePostMethod(details, functionSchema);
+        handleBodyMethod(details, functionSchema);
       }
 
       // Remove empty required array
@@ -66,6 +66,7 @@ const parseParameters = (parameters: any[], functionSchema: FunctionSchema) => {
     functionSchema.parameters.properties[param.name] = {
       type: param.schema.type,
       description: param.description,
+      location: param.in, // query, path, header, cookie, body
     };
     if (param.required) {
       functionSchema.parameters.required!.push(param.name);
@@ -73,13 +74,14 @@ const parseParameters = (parameters: any[], functionSchema: FunctionSchema) => {
   });
 };
 
-const handlePostMethod = (details: any, functionSchema: FunctionSchema) => {
+const handleBodyMethod = (details: any, functionSchema: FunctionSchema) => {
   const schema = details.requestBody.content['application/json'].schema;
   functionSchema.parameters.properties = {};
   Object.entries(schema.properties).forEach(([propName, propDetails]) => {
     functionSchema.parameters.properties[propName] = {
       type: (propDetails as any).type,
       description: (propDetails as any).description,
+      location: 'body',
     };
     if ((propDetails as any).required) {
       functionSchema.parameters.required!.push(propName);

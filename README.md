@@ -16,39 +16,87 @@ const functionsFromUrl = convertRawOpenAPISpecToOpenAIFunctions('https://url.com
 const functionsFromSpec = convertRawOpenAPISpecToOpenAIFunctions(openApiSpecString);
 ```
 
+## Example
+
+Input:
+
+```yaml
+openapi: 3.1.0
+info:
+  title: Shop API
+  version: 1.0.0
+servers:
+  - url: 'https://shop.com/api/v1'
+paths:
+  /order:
+    get:
+      summary: Retrieve an order by the provided order name
+      parameters:
+        - in: query
+          name: orderName
+          required: true
+          schema:
+            type: string
+          description: Order name
+```
+
 outputs:
 
 ```js
 [
   {
-    name: "getCurrentTemperature",
-    description: "Get the current temperature for a specific location",
+    name: 'get_order',
+    description: 'Retrieve an order by the provided order name',
     parameters: {
-      type: "object",
+      type: 'object',
       properties: {
-        location: {
-          type: "string",
-          description: "The city and state, e.g., San Francisco, CA",
-        },
-        unit: {
-          type: "string",
-          enum: ["Celsius", "Fahrenheit"],
-          description:
-            "The temperature unit to use. Infer this from the user's location.",
+        orderName: {
+          type: 'string',
+          description: 'Order name',
+          location: 'query',
         },
       },
-      required: ["location", "unit"],
+      required: ['orderName'],
     },
   },
-  ...
-]
+];
 ```
 
 Then you can manipulate it further to get to a list of tools:
 
 ```typescript
-functionsFromSpec.map((func) => ({
+const tools = functionsFromSpec.map((func) => ({
   type: 'function',
   function: func,
 }));
+```
+
+and use in OpenAI call:
+
+```typescript
+const response = await openai.chat.completions.create({
+  model: 'gpt-4o',
+  messages: messages,
+  tools: [
+    {
+      type: 'function',
+      function: {
+        name: 'get_order',
+        description: 'Retrieve an order by the provided order name',
+        parameters: {
+          type: 'object',
+          properties: {
+            orderName: {
+              type: 'string',
+              description: 'Order name',
+              location: 'query',
+            },
+          },
+          required: ['orderName'],
+        },
+      },
+    },
+  ],
+  tool_choice: 'auto',
+});
 ```

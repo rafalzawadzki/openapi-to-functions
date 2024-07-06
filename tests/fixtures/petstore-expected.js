@@ -7,7 +7,8 @@ export const expectedPetstoreSchema = [
       properties: {
         limit: {
           type: 'integer',
-          description: 'How many items to return at one time (max 100)'
+          description: 'How many items to return at one time (max 100)',
+          location: 'query'
         }
       }
     }
@@ -21,7 +22,8 @@ export const expectedPetstoreSchema = [
       properties: {
         name: {
           type: 'string',
-          description: 'Name of the pet'
+          description: 'Name of the pet',
+          location: 'body'
         }
       },
       required: ['name']
@@ -35,7 +37,8 @@ export const expectedPetstoreSchema = [
       properties: {
         petId: {
           type: 'string',
-          description: 'The id of the pet to retrieve'
+          description: 'The id of the pet to retrieve',
+          location: 'path'
         }
       },
       required: ['petId']

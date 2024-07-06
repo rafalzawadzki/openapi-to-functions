@@ -8,11 +8,13 @@ export const expectedShopSchema = [
       properties: {
         shopName: {
           type: 'string',
-          description: 'Shop name'
+          description: 'Shop name',
+          location: 'query'
         },
         orderName: {
           type: 'string',
-          description: 'Order name'
+          description: 'Order name',
+          location: 'query'
         }
       },
       required: ['shopName', 'orderName']
@@ -26,12 +28,14 @@ export const expectedShopSchema = [
       properties: {
         shopName: {
           type: 'string',
-          description: 'Shop name'
+          description: 'Shop name',
+          location: 'query'
         },
         searchQuery: {
           type: 'string',
           description:
-            'Query to search'
+            'Query to search',
+          location: 'query'
         }
       },
       required: ['shopName', 'searchQuery']
