@@ -4,6 +4,10 @@
 
 Do you have an OpenAPI file or URL and want to use it in your [Assistants API](https://platform.openai.com/docs/assistants/tools/function-calling/quickstart?lang=node.js) or [OpenAI Function Calling](https://platform.openai.com/docs/guides/function-calling)? Look no further.
 
+## Disclaimer
+
+This is a quick and dirty parser for OpenAPI spec to OpenAI Functions. It currently **does not** resolve `$ref` pointers.
+
 ## Quick Start
 
 `pnpm add openapi-to-functions`

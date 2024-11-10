@@ -74,6 +74,12 @@ const convertOpenAPIToFunctions = (openapi: OpenAPI.Document): FunctionSchema[] 
 
 const parseParameters = (parameters: any[], functionSchema: FunctionSchema) => {
   parameters.forEach((param: any) => {
+    if (param['$ref']) {
+      // @fixme this is not great; refs should be resolved.
+      // OpenAPISpec.getRootReferencedSchema maybe?
+      // or find a parser that does this automatically
+      return;
+    }
     const paramDetails: APIFunctionParameter = {
       type: param.schema.type,
       description: param.description,

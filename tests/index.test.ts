@@ -26,4 +26,15 @@ describe('convertOpenAPIToJSONSchema', () => {
 
     expect(result).toEqual(expectedPetstoreSchema);
   });
+
+  test('converts weather.json correctly', async () => {
+    // test fetching of remote spec
+    const result = await convertRawOpenAPISpecToOpenAIFunctions('https://api.weather.gov/openapi.json');
+    // just verify if parsing completed
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBeGreaterThan(0);
+    result.forEach((item) => {
+      expect(typeof item).toBe('object');
+    });
+  });
 });
